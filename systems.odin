@@ -27,7 +27,7 @@ update_shooting :: proc(world: ^World, dt: f32) {
 	}
 
 	if rl.IsMouseButtonPressed(.RIGHT) {
-		// shoot in 4 directions X shaped
+		spawn_circle(world, rl.GetMousePosition())
 	}
 }
 
@@ -62,7 +62,7 @@ update_enemies :: proc(world: ^World, dt: f32) {
 		entity_destroy(world, entity)
 	}
 
-	if elapsed_timer_triggered(&game.enemy_spawn_timer) {
+	if elapsed_timer_triggered(&game.enemy_spawn_timer) && false {
 		offset := rand.float32_range(-100, 100)
 		spawn_enemy(world, {20, WINDOW_HEIGHT / 2.0 + offset})
 	}
@@ -139,13 +139,19 @@ draw_rectangles :: proc(world: ^World) {
 debug_draw_nav_cells :: proc(world: ^World) {
 	for entity in world.nav_cells.entities {
 		transform := component_storage_get(&world.transforms, entity)
-		rl.DrawRectangleLines(
-			c.int(transform.position.x),
-			c.int(transform.position.y),
-			c.int(transform.size.x),
-			c.int(transform.size.y),
-			rl.Color{50, 50, 200, 100},
-		)
+		nav_cell := component_storage_get(&world.nav_cells, entity)
+		// rl.DrawRectangleLines(
+		// 	c.int(transform.position.x),
+		// 	c.int(transform.position.y),
+		// 	c.int(transform.size.x),
+		// 	c.int(transform.size.y),
+		// 	rl.Color{50, 50, 200, 100},
+		// )
+
+		cell_center := transform.position + transform.size / 2.0
+		cell_corner := cell_center + ((cast([2]f32)nav_cell.flow_vector * transform.size) / 3.0)
+		rl.DrawLineV(cell_center, cell_corner, rl.RED)
+
 	}
 }
 

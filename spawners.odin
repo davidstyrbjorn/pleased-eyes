@@ -18,7 +18,7 @@ spawn_circle :: proc(world: ^World, position: rl.Vector2) {
 	component_storage_add(&world.transforms, entity, Transform{position = position})
 }
 
-spawn_nav_cell :: proc(world: ^World, cell_position: Vector2i) {
+spawn_nav_cell :: proc(world: ^World, cell_position: Vector2i, walkable: bool) {
 	entity := entity_create(world)
 	component_storage_add(
 		&world.transforms,
@@ -31,7 +31,7 @@ spawn_nav_cell :: proc(world: ^World, cell_position: Vector2i) {
 	component_storage_add(
 		&world.nav_cells,
 		entity,
-		NavCell{cell_position = cell_position, walkable = true},
+		NavCell{cell_position = cell_position, walkable = walkable},
 	)
 }
 

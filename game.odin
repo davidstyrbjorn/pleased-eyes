@@ -43,6 +43,24 @@ Game :: struct {
 
 game: Game
 
+generate_flow_field :: proc(goal: Vector2i) {
+	world := &game.world
+	// cells := make([dynamic]Entity_ID, len())
+	cells := [CELL_COUNT.x * CELL_COUNT.y]Entity_ID{}
+	for entity, i in &world.nav_cells.entities {
+		nav_cell := component_storage_get(&world.nav_cells, entity)
+		cells[nav_cell.cell_position.x + nav_cell.cell_position.y * CELL_COUNT.x] = entity
+	}
+
+	for entity in cells {
+		nav_cell := component_storage_get(&world.nav_cells, entity)
+		for nav_cell.flow_vector == 0 {
+			nav_cell.flow_vector.x = rand.int_range(-1, 2)
+			nav_cell.flow_vector.y = rand.int_range(-1, 2)
+		}
+	}
+}
+
 game_init :: proc() {
 	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Tendrils of Time - Remake")
 	rl.InitAudioDevice()
@@ -61,9 +79,10 @@ game_init :: proc() {
 	entity_world_init(&game.world)
 	for x in 0 ..< CELL_COUNT.x {
 		for y in 0 ..< CELL_COUNT.y {
-			spawn_nav_cell(&game.world, Vector2i{x, y})
+			spawn_nav_cell(&game.world, Vector2i{x, y}, true)
 		}
 	}
+	generate_flow_field(0)
 
 	game.state = GameState_Menu{}
 

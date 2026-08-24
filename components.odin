@@ -39,7 +39,20 @@ Enemy :: struct {
 	move_speed: f32,
 }
 
+// Flow_Direction: Vector2i : enum {
+// 	NORTH = Vector2i{0, -1},
+// 	WEST = Vector2i{-1, 0},
+// 	EAST = Vector2i{0, -1},
+// 	SOUTH = Vector2i{1, 0},
+// 	NORTH_WEST = V,
+// 	NORTH_EAST,
+// 	SOUTH_WEST,
+// 	SOUTH_EAST,
+// }
+
 NavCell :: struct {
 	walkable:      bool,
 	cell_position: Vector2i,
+	flow_vector:   Vector2i, // direction towards the goal
+	cost:          int, // graph walk cost
 }
