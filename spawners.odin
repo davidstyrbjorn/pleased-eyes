@@ -1,25 +1,22 @@
 package main
 
+import "core:fmt"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-spawn_circle :: proc(world: ^World, position: rl.Vector2) {
+spawn_circle :: proc(world: ^World, position: rl.Vector2, grow := true, radius: f32 = -10) {
 	entity := entity_create(world)
 	component_storage_add(
 		&world.growing_circles,
 		entity,
-		Growing_Circle {
-			death_date = rand.float32_range(3.0, 5.0),
-			time_alive = 0,
-			color = random_color(),
-			grow = true,
-		},
+		Growing_Circle{color = random_color(), grow = grow, radius = radius},
 	)
 	component_storage_add(&world.transforms, entity, Transform{position = position})
 }
 
 spawn_nav_cell :: proc(world: ^World, cell_position: Vector2i, walkable: bool) {
 	entity := entity_create(world)
+	game.nav_cells[cell_position] = entity
 	component_storage_add(
 		&world.transforms,
 		entity,
@@ -28,10 +25,35 @@ spawn_nav_cell :: proc(world: ^World, cell_position: Vector2i, walkable: bool) {
 			size = rl.Vector2{1, 1} * SIZE_CELL,
 		},
 	)
+
 	component_storage_add(
 		&world.nav_cells,
 		entity,
-		NavCell{cell_position = cell_position, walkable = walkable},
+		NavCell {
+			cell_position = cell_position,
+			walkable = walkable,
+			interpolated_flow_vector = 0,
+			flow_vector = 0,
+		},
+	)
+}
+
+spawn_navigator :: proc(world: ^World, starting_cell_position: Vector2i) {
+	entity := entity_create(world)
+	t := component_storage_add(
+		&world.transforms,
+		entity,
+		Transform{position = center_cell(starting_cell_position), size = 16},
+	)
+	component_storage_add(&world.navigators, entity, Navigator{target = nil})
+}
+
+spawn_line :: proc(world: ^World, a: rl.Vector2, b: rl.Vector2) {
+	entity := entity_create(world)
+	component_storage_add(
+		&world.lines,
+		entity,
+		Line{color = random_color(), point_a = a, point_b = b},
 	)
 }
 

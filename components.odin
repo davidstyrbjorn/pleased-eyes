@@ -10,14 +10,14 @@ Transform :: struct {
 }
 
 Growing_Circle :: struct {
-	time_alive: f32,
-	death_date: f32,
-	color:      rl.Color,
-	grow:       bool,
+	radius: f32,
+	color:  rl.Color,
+	grow:   bool,
 }
 
-circle_get_t :: proc(circle: Growing_Circle) -> f32 {
-	return min(1.0, circle.time_alive / circle.death_date)
+Line :: struct {
+	point_a, point_b: rl.Vector2,
+	color:            rl.Color,
 }
 
 Rectangle :: struct {
@@ -50,9 +50,14 @@ Enemy :: struct {
 // 	SOUTH_EAST,
 // }
 
+Navigator :: struct {
+	target: ^NavCell,
+}
+
 NavCell :: struct {
-	walkable:      bool,
-	cell_position: Vector2i,
-	flow_vector:   Vector2i, // direction towards the goal
-	cost:          int, // graph walk cost
+	walkable:                 bool,
+	cell_position:            Vector2i,
+	flow_vector:              Vector2i, // direction towards the goal
+	interpolated_flow_vector: rl.Vector2,
+	cost:                     int, // graph walk cost
 }

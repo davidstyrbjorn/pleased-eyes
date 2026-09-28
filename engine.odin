@@ -11,6 +11,14 @@ import rl "vendor:raylib"
 
 Color :: [3]u8
 
+rlxy :: proc(x: f32, y: f32) -> rl.Vector2 {
+	return rl.Vector2{x, y}
+}
+
+window_size :: proc() -> rl.Vector2 {
+	return rl.Vector2{f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+}
+
 /* Shader stuff */
 
 ShaderUniformValue :: union {
@@ -175,10 +183,11 @@ do_text_center :: proc(
 	color: rl.Color,
 	font: rl.Font,
 ) {
+	ws := window_size()
 	c_string := strings.clone_to_cstring(text, context.temp_allocator)
 	SPACING :: 4.0
 	text_size := rl.MeasureTextEx(font, c_string, font_size, SPACING)
-	x := (WINDOW_WIDTH / 2.0) - (text_size.x / 2)
+	x := (ws.x / 2.0) - (text_size.x / 2)
 	do_text(text, rlxy(x, offset_y), font_size, color, font)
 }
 
@@ -249,3 +258,26 @@ elapsed_timer_reset :: proc(timer: ^ElapsedTimer) {
 }
 
 Vector2i :: [2]int
+
+foo :: proc() {
+	// t: Timeline
+	// timeline_add(&t, {
+	//   frame = 0
+	// 	 v = &v
+	// 	 from = 0.0
+	//   to = 1.0
+	//   duration = 3.0
+	//   tweening = CUBIC_IN | SIN | SMOOTHSTEP | LINEAR | QUAD_IN_OUT etc
+	// })
+
+	// timeline_set_frame(0)
+	// // timeline_set_frame(1) this would crash since there's no frame 1 in the timeline
+	// if timeline_not_done(&v) {
+	// 		timeline_play(&v, dt)
+	// 		use v! updated by the timeline since it has a reference to it
+	// }
+	/*
+	* Alternatively playing through the timeline can be something like
+
+	*/
+}

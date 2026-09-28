@@ -103,6 +103,8 @@ World :: struct {
 	rectangles:      Component_Storage(Rectangle),
 	enemies:         Component_Storage(Enemy),
 	nav_cells:       Component_Storage(NavCell),
+	navigators:      Component_Storage(Navigator),
+	lines:           Component_Storage(Line),
 	messages:        [dynamic]World_Message,
 }
 
@@ -121,6 +123,8 @@ entity_world_destroy :: proc(world: ^World) {
 	component_storage_destroy(&world.bullets)
 	component_storage_destroy(&world.rectangles)
 	component_storage_destroy(&world.enemies)
+	component_storage_destroy(&world.navigators)
+	component_storage_destroy(&world.lines)
 
 	world^ = World{}
 }
@@ -151,6 +155,8 @@ entity_destroy :: proc(world: ^World, entity: Entity_ID) {
 	component_storage_remove(&world.bullets, entity)
 	component_storage_remove(&world.rectangles, entity)
 	component_storage_remove(&world.enemies, entity)
+	component_storage_remove(&world.navigators, entity)
+	component_storage_remove(&world.lines, entity)
 
 	entity_remove_active(world, entity)
 	append(&world.free_entities, entity)

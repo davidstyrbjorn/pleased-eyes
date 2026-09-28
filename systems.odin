@@ -1,11 +1,12 @@
 package main
 
 import "core:c"
+import "core:fmt"
 import "core:math"
+import "core:math/linalg"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-RADIUS :: 100
 MAX_MOVE_SPEED :: 90
 
 update_shooting :: proc(world: ^World, dt: f32) {
@@ -25,10 +26,78 @@ update_shooting :: proc(world: ^World, dt: f32) {
 			speed,
 		)
 	}
+}
 
-	if rl.IsMouseButtonPressed(.RIGHT) {
-		spawn_circle(world, rl.GetMousePosition())
+update_navigators :: proc(world: ^World, dt: f32) {
+	if elapsed_timer_triggered(&game.navigator_spawn_timer) {
+		// Pick a random border cell
+		num := rand.int_range(0, 4)
+		spawn_position: Vector2i = 0
+		if num == 0 {
+			spawn_position.x = 0
+			spawn_position.y = rand.int_range(0, CELL_COUNT.y)
+		}
+		if num == 1 {
+			spawn_position.x = CELL_COUNT.x - 1
+			spawn_position.y = rand.int_range(0, CELL_COUNT.y)
+		}
+		if num == 2 {
+			spawn_position.x = rand.int_range(0, CELL_COUNT.x)
+			spawn_position.y = 0
+		}
+		if num == 3 {
+			spawn_position.x = rand.int_range(0, CELL_COUNT.x)
+			spawn_position.y = CELL_COUNT.y - 1
+		}
+		spawn_navigator(world, spawn_position)
 	}
+
+	move_speed :: 100
+	entities_to_remove := make([dynamic]Entity_ID, context.temp_allocator)
+	for entity in world.navigators.entities {
+		navigator := component_storage_get(&world.navigators, entity)
+		transform := component_storage_get(&world.transforms, entity)
+		if navigator.target == nil {
+			// Find target
+			// Convert out world position to a cell_position
+			cell_position: Vector2i = {
+				int(transform.position.x / SIZE_CELL),
+				int(transform.position.y / SIZE_CELL),
+			}
+
+			nav_cell_entity := game.nav_cells[cell_position]
+			nav_cell := component_storage_get(&world.nav_cells, nav_cell_entity)
+			navigator.target = nav_cell
+		} else {
+			if rl.Vector2Distance(
+				   transform.position,
+				   center_cell(navigator.target.cell_position),
+			   ) <
+			   0.1 {
+				// Did we reach our target and is it equal to the goal position
+				if navigator.target.cell_position == goal_position {
+					append(&entities_to_remove, entity)
+				} else {
+					// Time to pick a new thing to move towards
+					new_cell := navigator.target.cell_position + navigator.target.flow_vector
+					new_target := game.nav_cells[new_cell]
+					if component_storage_has(&world.nav_cells, new_target) {
+						navigator.target = component_storage_get(&world.nav_cells, new_target)
+					}
+				}
+			} else {
+				dir := linalg.normalize(
+					center_cell(navigator.target.cell_position) - transform.position,
+				)
+				transform.position += dir * move_speed * dt
+			}
+		}
+	}
+
+	for entity in entities_to_remove {
+		entity_destroy(world, entity)
+	}
+
 }
 
 draw_shooting :: proc() {
@@ -40,41 +109,47 @@ draw_shooting :: proc() {
 	}
 }
 
-update_enemies :: proc(world: ^World, dt: f32) {
-	to_destroy: [dynamic]Entity_ID
-
-	for entity in world.enemies.entities {
+draw_navigators :: proc(world: ^World) {
+	for entity in world.navigators.entities {
 		transform := component_storage_get(&world.transforms, entity)
-		enemy := component_storage_get(&world.enemies, entity)
-		transform.position.x += enemy.move_speed * dt
-
-		for entity2 in world.bullets.entities {
-			transform2 := component_storage_get(&world.transforms, entity2)
-			if check_rect_collision(transform, transform2) {
-				append(&to_destroy, entity)
-				append(&to_destroy, entity2)
-				break
-			}
-		}
-	}
-
-	for entity in to_destroy {
-		entity_destroy(world, entity)
-	}
-
-	if elapsed_timer_triggered(&game.enemy_spawn_timer) && false {
-		offset := rand.float32_range(-100, 100)
-		spawn_enemy(world, {20, WINDOW_HEIGHT / 2.0 + offset})
+		rl.DrawCircleV(transform.position, transform.size.x, rl.PURPLE)
 	}
 }
 
+Circle_Grow_System :: struct {
+	grow: bool,
+}
+
+circle_grow: Circle_Grow_System = {
+	grow = false,
+}
 
 update_growing_circles :: proc(world: ^World, dt: f32) {
+	if rl.IsMouseButtonPressed(.RIGHT) {
+		mouse_pos := rl.GetMousePosition()
+		// Snap to the center of a cell
+		cell_position: Vector2i = {int(mouse_pos.x / SIZE_CELL), int(mouse_pos.y / SIZE_CELL)}
+		spawn_position := center_cell(cell_position)
+		spawn_circle(world, spawn_position)
+	}
+
+	if rl.IsKeyPressed(.SPACE) {
+		circle_grow.grow = !circle_grow.grow
+	}
+
+	if !circle_grow.grow {
+		return
+	}
+
+	grow_speed :: 50
+
 	for entity in world.growing_circles.entities {
 		circle := component_storage_get(&world.growing_circles, entity)
 		if circle.grow {
-			circle.time_alive += dt
+			circle.radius += dt * grow_speed
 		}
+
+		collided_with := make([dynamic]Entity_ID, context.temp_allocator)
 
 		for entity2 in world.growing_circles.entities {
 			if entity == entity2 {
@@ -84,28 +159,53 @@ update_growing_circles :: proc(world: ^World, dt: f32) {
 			transform := component_storage_get(&world.transforms, entity)
 			transform2 := component_storage_get(&world.transforms, entity2)
 
-			r := RADIUS * circle_get_t(circle^)
-			r2 := RADIUS * circle_get_t(circle2^)
 			delta := transform2.position - transform.position
 			delta_squared := math.pow(delta.x, 2) + math.pow(delta.y, 2)
-			radii_sum := r + r2
-			if delta_squared <= math.pow(radii_sum, 2) {
-				circle.grow = false
+			radii_sum := circle.radius + circle2.radius
+			if delta_squared <= math.pow(radii_sum, 2) && circle.grow {
+				append(&collided_with, entity2)
 			}
 		}
-	}
 
-	// if rl.IsMouseButtonPressed(.LEFT) {
-	// 	mouse_pos := rl.GetMousePosition()
-	// 	spawn_circle(&game.world, mouse_pos)
-	// }
+		for entity2 in collided_with {
+			transform := component_storage_get(&world.transforms, entity)
+			transform2 := component_storage_get(&world.transforms, entity2)
+
+			circle.grow = false
+
+			// Collision point is what?
+			collision_point :=
+				transform.position +
+				rl.Vector2Normalize(transform2.position - transform.position) * circle.radius
+
+			game.debug_point = collision_point
+
+			// we want to grab the tangent of this point on the circle
+			a := transform.position
+			b := transform2.position
+			a_to_b := a - b
+			c: rl.Vector2
+			c.x = -a_to_b.y
+			c.y = a_to_b.x
+			c = rl.Vector2Normalize(c)
+			spawn_line(world, collision_point + c * 100, collision_point - c * 100)
+		}
+	}
 }
 
 update_bullets :: proc(world: ^World, dt: f32) {
 	for entity in world.bullets.entities {
 		bullet := component_storage_get(&world.bullets, entity)
 		transform := component_storage_get(&world.transforms, entity)
+		rect := component_storage_get(&world.rectangles, entity)
 		transform.position += rl.Vector2Normalize(bullet.direction) * dt * bullet.speed
+
+		if transform.position.x < 0 || transform.position.x + transform.size.x > WINDOW_WIDTH {
+			bullet.direction.x *= -1
+		}
+		if transform.position.y < 0 || transform.position.y + transform.size.y > WINDOW_HEIGHT {
+			bullet.direction.y *= -1
+		}
 	}
 }
 
@@ -136,6 +236,19 @@ draw_rectangles :: proc(world: ^World) {
 	}
 }
 
+update_nav_cells :: proc(world: ^World, dt: f32) {
+	for entity in world.nav_cells.entities {
+		nav_cell := component_storage_get(&world.nav_cells, entity)
+		goal := [2]f32{f32(nav_cell.flow_vector.x), f32(nav_cell.flow_vector.y)}
+
+		nav_cell.interpolated_flow_vector = linalg.lerp(
+			nav_cell.interpolated_flow_vector,
+			goal,
+			dt * 5,
+		)
+	}
+}
+
 debug_draw_nav_cells :: proc(world: ^World) {
 	for entity in world.nav_cells.entities {
 		transform := component_storage_get(&world.transforms, entity)
@@ -148,9 +261,14 @@ debug_draw_nav_cells :: proc(world: ^World) {
 		// 	rl.Color{50, 50, 200, 100},
 		// )
 
+		// center_cell := transform.position + transform.size / 2.0
+		// rl.DrawCircleV(center_cell, 5, rl.PURPLE)
+
 		cell_center := transform.position + transform.size / 2.0
-		cell_corner := cell_center + ((cast([2]f32)nav_cell.flow_vector * transform.size) / 3.0)
-		rl.DrawLineV(cell_center, cell_corner, rl.RED)
+		cell_corner :=
+			cell_center +
+			((cast([2]f32)nav_cell.interpolated_flow_vector * transform.size * 0.5) / 1.0)
+		// rl.DrawLineV(cell_center, cell_corner, rl.RED)
 
 	}
 }
@@ -163,7 +281,17 @@ draw_menu :: proc(world: ^World) {
 draw_paused :: proc(world: ^World) {
 	do_text_center("Paused", 100, FONT_SIZE_TITLE, rl.WHITE, game.font_title)
 	do_text_center("Press [ESCAPE] to return", 250, FONT_SIZE_BODY, rl.WHITE, game.font_body)
+}
 
+draw_lines :: proc(world: ^World) {
+	for entity in world.lines.entities {
+		line := component_storage_get(&world.lines, entity)
+		when ODIN_DEBUG {
+			assert(line != nil)
+		}
+
+		rl.DrawLineDashed(line.point_a, line.point_b, 2, 5, rl.SKYBLUE)
+	}
 }
 
 draw_circles :: proc(world: ^World) {
@@ -174,7 +302,7 @@ draw_circles :: proc(world: ^World) {
 			assert(transform != nil && circle != nil)
 		}
 
-		r := RADIUS * circle_get_t(circle^)
+		r := abs(circle.radius)
 		rl.DrawCircleLinesV(transform.position, r, circle.color)
 	}
 }
