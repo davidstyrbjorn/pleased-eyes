@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:strings"
 import "core:time"
 import rl "vendor:raylib"
 
@@ -43,7 +44,6 @@ Game :: struct {
 	navigator_spawn_timer: ElapsedTimer,
 	nav_cells:             map[Vector2i]Entity_ID, // auxilary storage for easier access into navigation cells
 	shader:                Shader,
-	debug_point:           rl.Vector2,
 }
 
 game: Game
@@ -115,6 +115,14 @@ game_init :: proc() {
 }
 
 game_run :: proc() {
+
+	a: f32 = 0
+	b: f32 = 0
+	timelines: Timelines
+	timelines_add(&timelines, {duration = 5.0, from = 0.0, to = 255, v = &a})
+	timelines_add(&timelines, {duration = 2.0, from = 0.0, to = 255, v = &b})
+	timelines_set_frame(&timelines, 0)
+
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
@@ -157,6 +165,8 @@ game_run :: proc() {
 			update_bullets(&game.world, dt)
 			update_navigators(&game.world, dt)
 
+			timelines_play(&timelines, dt)
+
 		case GameState_Paused:
 			game.volume = math.lerp(game.volume, 0.0, dt)
 
@@ -170,28 +180,40 @@ game_run :: proc() {
 		case GameState_Menu:
 			draw_menu(&game.world)
 		case GameState_Playing:
-			rl.BeginShaderMode(game.shader.rl_shader)
+			// rl.BeginShaderMode(game.shader.rl_shader)
 
-			window_width := rl.GetScreenWidth()
-			window_height := rl.GetScreenHeight()
-			update_uniform_value(
-				&game.shader,
-				"uResolution",
-				rl.Vector2{f32(window_width), f32(window_height)},
+			// window_width := rl.GetScreenWidth()
+			// window_height := rl.GetScreenHeight()
+			// update_uniform_value(
+			// 	&game.shader,
+			// 	"uResolution",
+			// 	rl.Vector2{f32(window_width), f32(window_height)},
+			// )
+			// update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
+
+			// rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
+
+			// rl.EndShaderMode()
+
+			// debug_draw_nav_cells(&game.world)
+			// draw_circles(&game.world)
+			// draw_lines(&game.world)
+			// draw_shooting()
+			// draw_rectangles(&game.world)
+			// draw_navigators(&game.world)
+
+			rl.DrawText(
+				strings.clone_to_cstring(
+					fmt.tprintf("a = %.1f, b = %.1f", a, b),
+					context.temp_allocator,
+				),
+				0,
+				0,
+				32,
+				rl.WHITE,
 			)
-			update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
-
-			rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
-
-			rl.EndShaderMode()
-
-			debug_draw_nav_cells(&game.world)
-			draw_circles(&game.world)
-			draw_lines(&game.world)
-			draw_shooting()
-			draw_rectangles(&game.world)
-			draw_navigators(&game.world)
-			rl.DrawCircleV(game.debug_point, 5, rl.RED)
+			rl.DrawRectangleV(rlxy(300, 100), rlxy(100, 100), rl.Color{u8(a), 0, 0, 255})
+			rl.DrawRectangleV(rlxy(400, 100), rlxy(100, 100), rl.Color{0, u8(b), 0, 255})
 		case GameState_Paused:
 			draw_circles(&game.world)
 			draw_lines(&game.world)

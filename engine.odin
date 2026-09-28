@@ -1,5 +1,7 @@
 package main
 
+import "core:math"
+import "core:math/linalg"
 // Generic code for particular systems that helps building the
 // This leans on raylib, box2d and library_world.odin
 
@@ -259,10 +261,62 @@ elapsed_timer_reset :: proc(timer: ^ElapsedTimer) {
 
 Vector2i :: [2]int
 
+import "base:intrinsics"
+
+Timeline_Easing :: enum {
+	LINEAR,
+	CUBIC,
+}
+
+Timeline :: struct {
+	v:        ^f32,
+	from:     f32,
+	to:       f32,
+	duration: f32,
+	easing:   Timeline_Easing,
+}
+
+Timelines :: struct {
+	current: int,
+	t:       f32,
+	list:    [dynamic]Timeline,
+}
+
+timelines_add :: proc(timelines: ^Timelines, timeline: Timeline) {
+	append(&timelines.list, timeline)
+}
+
+timelines_set_frame :: proc(timelines: ^Timelines, frame: int) {
+	assert(frame >= 0 && frame < len(timelines.list))
+	timelines.current = frame
+	timelines.list[frame].v^ = timelines.list[frame].from
+	timelines.t = 0.0
+}
+
+timelines_done :: proc(timelines: ^Timelines) -> bool {
+
+}
+
+timelines_play :: proc(timelines: ^Timelines, dt: f32) {
+	// Check if we have any at all or maybe we're at the end
+	if len(timelines.list) == 0 || timelines.current >= len(timelines.list) {
+		return
+	}
+
+	timeline := &timelines.list[timelines.current]
+	timelines.t = min(timelines.t + dt / timeline.duration, 1.0)
+	timeline.v^ = linalg.lerp(timeline.from, timeline.to, timelines.t)
+
+	// Advance to next timeline	
+	if abs(timelines.t - 1.0) < math.F32_EPSILON {
+		timelines.current += 1
+		timelines.t = 0
+	}
+}
+
 foo :: proc() {
 	// t: Timeline
-	// timeline_add(&t, {
-	//   frame = 0
+	// timeline_add(&t, 0, {
 	// 	 v = &v
 	// 	 from = 0.0
 	//   to = 1.0

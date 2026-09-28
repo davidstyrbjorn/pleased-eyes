@@ -178,8 +178,6 @@ update_growing_circles :: proc(world: ^World, dt: f32) {
 				transform.position +
 				rl.Vector2Normalize(transform2.position - transform.position) * circle.radius
 
-			game.debug_point = collision_point
-
 			// we want to grab the tangent of this point on the circle
 			a := transform.position
 			b := transform2.position
@@ -261,7 +259,7 @@ debug_draw_nav_cells :: proc(world: ^World) {
 		// 	rl.Color{50, 50, 200, 100},
 		// )
 
-		// center_cell := transform.position + transform.size / 2.0
+		center_cell := transform.position + transform.size / 2.0
 		// rl.DrawCircleV(center_cell, 5, rl.PURPLE)
 
 		cell_center := transform.position + transform.size / 2.0
