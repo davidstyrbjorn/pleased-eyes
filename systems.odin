@@ -198,12 +198,13 @@ update_bullets :: proc(world: ^World, dt: f32) {
 		rect := component_storage_get(&world.rectangles, entity)
 		transform.position += rl.Vector2Normalize(bullet.direction) * dt * bullet.speed
 
-		// if transform.position.x < 0 || transform.position.x + transform.size.x > WINDOW_WIDTH {
-		// 	bullet.direction.x *= -1
-		// }
-		// if transform.position.y < 0 || transform.position.y + transform.size.y > WINDOW_HEIGHT {
-		// 	bullet.direction.y *= -1
-		// }
+		window_size := window_size()
+		if transform.position.x < 0 || transform.position.x + transform.size.x > window_size.x {
+			bullet.direction.x *= -1
+		}
+		if transform.position.y < 0 || transform.position.y + transform.size.y > window_size.y {
+			bullet.direction.y *= -1
+		}
 	}
 }
 

@@ -13,7 +13,7 @@ Constants
 */
 MUSIC_BPM :: 80
 SIZE_CELL :: 64
-CELL_COUNT :: Vector2i{11, 11}
+CELL_COUNT :: Vector2i{19, 19}
 
 FONT_SIZE_TITLE :: 128
 FONT_SIZE_BODY :: 48
@@ -117,6 +117,48 @@ game_init :: proc() {
 	game.navigator_spawn_timer.playing = true
 }
 
+dump_draw_instructions_all_circles_and_lines :: proc() {
+	b := strings.builder_make()
+	for entity in game.world.growing_circles.entities {
+		transform := component_storage_get(&game.world.transforms, entity)
+		circle := component_storage_get(&game.world.growing_circles, entity)
+		strings.write_string(
+			&b,
+			fmt.tprintf(
+				"rl.DrawCircleV({{%v, %v}}, %v, {{%v, %v, %v, %v}})\n",
+				transform.position.x,
+				transform.position.y,
+				circle.radius,
+				circle.color.r,
+				circle.color.g,
+				circle.color.b,
+				circle.color.a,
+			),
+		)
+	}
+
+	for entity in game.world.lines.entities {
+		line := component_storage_get(&game.world.lines, entity)
+		strings.write_string(
+			&b,
+			fmt.tprintf(
+				"rl.DrawLineDashed({{%v, %v}}, {{%v, %v}}, 2, 5, {{%v, %v, %v, %v}})\n",
+				line.point_a.x,
+				line.point_a.y,
+				line.point_b.x,
+				line.point_b.y,
+				line.color.r,
+				line.color.g,
+				line.color.b,
+				line.color.a,
+			),
+		)
+	}
+
+	str := strings.to_string(b)
+	fmt.println(str)
+}
+
 game_run :: proc() {
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
@@ -183,6 +225,13 @@ game_run :: proc() {
 					component_storage_remove(&game.world.growing_circles, entity)
 				}
 			}
+			if rl.IsKeyPressed(.TWO) {
+				goal_position.x = CELL_COUNT.x / 2
+				goal_position.y = CELL_COUNT.y / 2
+			}
+			if rl.IsKeyPressed(.THREE) {
+				dump_draw_instructions_all_circles_and_lines()
+			}
 
 		case GameState_Paused:
 			game.volume = math.lerp(game.volume, 0.0, dt)
@@ -212,12 +261,95 @@ game_run :: proc() {
 
 			rl.EndShaderMode()
 
-			debug_draw_nav_cells(&game.world)
-			draw_circles(&game.world)
-			draw_lines(&game.world)
-			draw_shooting()
-			draw_rectangles(&game.world)
-			draw_navigators(&game.world)
+			// debug_draw_nav_cells(&game.world)
+			// draw_circles(&game.world)
+			// draw_lines(&game.world)
+			// draw_shooting()
+			// draw_rectangles(&game.world)
+			// draw_navigators(&game.world)
+
+			rl.DrawCircleV({608, 608}, 32.385418, {113, 150, 106, 255})
+			rl.DrawCircleV({608, 736}, 45.579853, {132, 131, 186, 255})
+			rl.DrawCircleV({608, 544}, 32.108406, {128, 122, 194, 255})
+			rl.DrawCircleV({480, 608}, 45.579853, {164, 165, 195, 255})
+			rl.DrawCircleV({736, 608}, 45.579853, {180, 149, 112, 255})
+			rl.DrawCircleV({544, 672}, 45.283447, {174, 103, 161, 255})
+			rl.DrawCircleV({672, 672}, 45.283447, {161, 142, 156, 255})
+			rl.DrawCircleV({544, 480}, 58.466766, {142, 196, 116, 255})
+			rl.DrawCircleV({672, 480}, 58.466766, {182, 156, 177, 255})
+			rl.DrawLineDashed({708, 576.1084}, {508, 576.1084}, 2, 5, {110, 195, 114, 255})
+			rl.DrawLineDashed({508, 575.61456}, {708, 575.61456}, 2, 5, {143, 157, 143, 255})
+			rl.DrawLineDashed(
+				{646.73096, 633.3096},
+				{505.30957, 774.73096},
+				2,
+				5,
+				{103, 122, 109, 255},
+			)
+			rl.DrawLineDashed(
+				{441.2691, 710.6904},
+				{582.6904, 569.26904},
+				2,
+				5,
+				{144, 164, 104, 255},
+			)
+			rl.DrawLineDashed(
+				{710.6904, 774.73096},
+				{569.26904, 633.3096},
+				2,
+				5,
+				{106, 100, 102, 255},
+			)
+			rl.DrawLineDashed(
+				{633.3096, 569.26904},
+				{774.73096, 710.6904},
+				2,
+				5,
+				{172, 187, 174, 255},
+			)
+			rl.DrawLineDashed(
+				{505.0595, 774.4809},
+				{646.4809, 633.0595},
+				2,
+				5,
+				{148, 177, 166, 255},
+			)
+			rl.DrawLineDashed(
+				{569.5191, 633.0595},
+				{710.9405, 774.4809},
+				2,
+				5,
+				{171, 149, 118, 255},
+			)
+			rl.DrawLineDashed(
+				{582.9405, 569.5191},
+				{441.5191, 710.9405},
+				2,
+				5,
+				{145, 137, 126, 255},
+			)
+			rl.DrawLineDashed(
+				{774.4809, 710.9405},
+				{633.0595, 569.5191},
+				2,
+				5,
+				{178, 104, 149, 255},
+			)
+			rl.DrawLineDashed(
+				{656.0529, 450.63153},
+				{514.63153, 592.0529},
+				2,
+				5,
+				{191, 189, 147, 255},
+			)
+			rl.DrawLineDashed(
+				{701.36847, 592.0529},
+				{559.9471, 450.63153},
+				2,
+				5,
+				{118, 106, 171, 255},
+			)
+
 		case GameState_Paused:
 			draw_circles(&game.world)
 			draw_lines(&game.world)
