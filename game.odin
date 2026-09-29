@@ -11,11 +11,9 @@ import rl "vendor:raylib"
 /*
 Constants
 */
-WINDOW_WIDTH :: 1024
-WINDOW_HEIGHT :: 1024
 MUSIC_BPM :: 80
 SIZE_CELL :: 64
-CELL_COUNT :: Vector2i{16, 16}
+CELL_COUNT :: Vector2i{11, 11}
 
 FONT_SIZE_TITLE :: 128
 FONT_SIZE_BODY :: 48
@@ -78,7 +76,12 @@ generate_flow_field :: proc(goal: Vector2i) {
 
 game_init :: proc() {
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .MSAA_4X_HINT})
-	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Tendrils of Time - Remake")
+
+	rl.InitWindow(
+		i32(CELL_COUNT.x * SIZE_CELL),
+		i32(CELL_COUNT.y * SIZE_CELL),
+		"Tendrils of Time - Remake",
+	)
 	rl.InitAudioDevice()
 	rl.SetExitKey(nil)
 
@@ -95,7 +98,7 @@ game_init :: proc() {
 	game.shader = load_shader(
 		"obsidian.frag",
 		{
-			ShaderUniform{name = "uResolution", value = rl.Vector2{WINDOW_WIDTH, WINDOW_HEIGHT}},
+			ShaderUniform{name = "uResolution", value = rl.Vector2{0, 0}},
 			ShaderUniform{name = "uTime", value = 0.0},
 		},
 	)
@@ -115,14 +118,6 @@ game_init :: proc() {
 }
 
 game_run :: proc() {
-
-	a: f32 = 0
-	b: f32 = 0
-	timelines: Timelines
-	timelines_add(&timelines, {duration = 5.0, from = 0.0, to = 255, v = &a})
-	timelines_add(&timelines, {duration = 2.0, from = 0.0, to = 255, v = &b})
-	timelines_set_frame(&timelines, 0)
-
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
@@ -164,8 +159,30 @@ game_run :: proc() {
 			update_paused(&game.world)
 			update_bullets(&game.world, dt)
 			update_navigators(&game.world, dt)
+			update_pulsing_circles(&game.world, dt)
 
-			timelines_play(&timelines, dt)
+			if rl.IsKeyPressed(.ONE) {
+				entities := make_dynamic_array([dynamic]Entity_ID, context.temp_allocator)
+				// Turn all Growing_Circle components into Pulsing_Circle motherfuckers
+				for entity in game.world.growing_circles.entities {
+					growing_circle := component_storage_get(&game.world.growing_circles, entity)
+					component_storage_add(
+						&game.world.pulsing_circles,
+						entity,
+						Pulsing_Circle {
+							from_radius = growing_circle.radius,
+							to_radius = growing_circle.radius - 20,
+							radius = growing_circle.radius,
+							color = growing_circle.color,
+						},
+					)
+					append(&entities, entity)
+				}
+
+				for entity in entities {
+					component_storage_remove(&game.world.growing_circles, entity)
+				}
+			}
 
 		case GameState_Paused:
 			game.volume = math.lerp(game.volume, 0.0, dt)
@@ -180,40 +197,27 @@ game_run :: proc() {
 		case GameState_Menu:
 			draw_menu(&game.world)
 		case GameState_Playing:
-			// rl.BeginShaderMode(game.shader.rl_shader)
+			rl.BeginShaderMode(game.shader.rl_shader)
 
-			// window_width := rl.GetScreenWidth()
-			// window_height := rl.GetScreenHeight()
-			// update_uniform_value(
-			// 	&game.shader,
-			// 	"uResolution",
-			// 	rl.Vector2{f32(window_width), f32(window_height)},
-			// )
-			// update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
-
-			// rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
-
-			// rl.EndShaderMode()
-
-			// debug_draw_nav_cells(&game.world)
-			// draw_circles(&game.world)
-			// draw_lines(&game.world)
-			// draw_shooting()
-			// draw_rectangles(&game.world)
-			// draw_navigators(&game.world)
-
-			rl.DrawText(
-				strings.clone_to_cstring(
-					fmt.tprintf("a = %.1f, b = %.1f", a, b),
-					context.temp_allocator,
-				),
-				0,
-				0,
-				32,
-				rl.WHITE,
+			window_width := rl.GetScreenWidth()
+			window_height := rl.GetScreenHeight()
+			update_uniform_value(
+				&game.shader,
+				"uResolution",
+				rl.Vector2{f32(window_width), f32(window_height)},
 			)
-			rl.DrawRectangleV(rlxy(300, 100), rlxy(100, 100), rl.Color{u8(a), 0, 0, 255})
-			rl.DrawRectangleV(rlxy(400, 100), rlxy(100, 100), rl.Color{0, u8(b), 0, 255})
+			update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
+
+			rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
+
+			rl.EndShaderMode()
+
+			debug_draw_nav_cells(&game.world)
+			draw_circles(&game.world)
+			draw_lines(&game.world)
+			draw_shooting()
+			draw_rectangles(&game.world)
+			draw_navigators(&game.world)
 		case GameState_Paused:
 			draw_circles(&game.world)
 			draw_lines(&game.world)

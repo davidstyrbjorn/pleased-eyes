@@ -198,12 +198,12 @@ update_bullets :: proc(world: ^World, dt: f32) {
 		rect := component_storage_get(&world.rectangles, entity)
 		transform.position += rl.Vector2Normalize(bullet.direction) * dt * bullet.speed
 
-		if transform.position.x < 0 || transform.position.x + transform.size.x > WINDOW_WIDTH {
-			bullet.direction.x *= -1
-		}
-		if transform.position.y < 0 || transform.position.y + transform.size.y > WINDOW_HEIGHT {
-			bullet.direction.y *= -1
-		}
+		// if transform.position.x < 0 || transform.position.x + transform.size.x > WINDOW_WIDTH {
+		// 	bullet.direction.x *= -1
+		// }
+		// if transform.position.y < 0 || transform.position.y + transform.size.y > WINDOW_HEIGHT {
+		// 	bullet.direction.y *= -1
+		// }
 	}
 }
 
@@ -247,6 +247,22 @@ update_nav_cells :: proc(world: ^World, dt: f32) {
 	}
 }
 
+pulsing_t: f32 = 0
+update_pulsing_circles :: proc(world: ^World, dt: f32) {
+	if len(world.pulsing_circles.entities) == 0 {
+		return
+	}
+
+	pulsing_t += dt
+
+	for entity in world.pulsing_circles.entities {
+		pulsing_circle := component_storage_get(&world.pulsing_circles, entity)
+		diff := pulsing_circle.to_radius - pulsing_circle.from_radius
+		h := (math.sin_f32(pulsing_t - math.PI / 2.0) + 1) / 2.0
+		pulsing_circle.radius = pulsing_circle.from_radius + diff * h
+	}
+}
+
 debug_draw_nav_cells :: proc(world: ^World) {
 	for entity in world.nav_cells.entities {
 		transform := component_storage_get(&world.transforms, entity)
@@ -266,7 +282,7 @@ debug_draw_nav_cells :: proc(world: ^World) {
 		cell_corner :=
 			cell_center +
 			((cast([2]f32)nav_cell.interpolated_flow_vector * transform.size * 0.5) / 1.0)
-		// rl.DrawLineV(cell_center, cell_corner, rl.RED)
+		rl.DrawLineV(cell_center, cell_corner, rl.RED)
 
 	}
 }
@@ -302,5 +318,15 @@ draw_circles :: proc(world: ^World) {
 
 		r := abs(circle.radius)
 		rl.DrawCircleLinesV(transform.position, r, circle.color)
+	}
+
+	for entity in world.pulsing_circles.entities {
+		transform := component_storage_get(&world.transforms, entity)
+		circle := component_storage_get(&world.pulsing_circles, entity)
+		when ODIN_DEBUG {
+			assert(transform != nil && circle != nil)
+		}
+
+		rl.DrawCircleLinesV(transform.position, circle.radius, circle.color)
 	}
 }

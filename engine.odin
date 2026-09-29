@@ -161,7 +161,8 @@ do_button_center :: proc(text: string, offset_y: f32, font_size: f32, font: rl.F
 	PADDING :: 50
 	text_size := rl.MeasureTextEx(font, c_string, font_size, SPACING)
 	width := text_size.x + PADDING
-	x := (WINDOW_WIDTH / 2) - width / 2
+
+	x := (window_size().x / 2) - width / 2
 
 	return do_button(text, rlxy(x, offset_y), font_size, font)
 }
@@ -291,10 +292,6 @@ timelines_set_frame :: proc(timelines: ^Timelines, frame: int) {
 	timelines.current = frame
 	timelines.list[frame].v^ = timelines.list[frame].from
 	timelines.t = 0.0
-}
-
-timelines_done :: proc(timelines: ^Timelines) -> bool {
-
 }
 
 timelines_play :: proc(timelines: ^Timelines, dt: f32) {

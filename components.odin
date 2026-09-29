@@ -15,6 +15,12 @@ Growing_Circle :: struct {
 	grow:   bool,
 }
 
+Pulsing_Circle :: struct {
+	radius:                 f32,
+	from_radius, to_radius: f32,
+	color:                  rl.Color,
+}
+
 Line :: struct {
 	point_a, point_b: rl.Vector2,
 	color:            rl.Color,

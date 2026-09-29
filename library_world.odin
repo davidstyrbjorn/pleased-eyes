@@ -99,6 +99,7 @@ World :: struct {
 	next_entity_id:  Entity_ID,
 	transforms:      Component_Storage(Transform),
 	growing_circles: Component_Storage(Growing_Circle),
+	pulsing_circles: Component_Storage(Pulsing_Circle),
 	bullets:         Component_Storage(Bullet),
 	rectangles:      Component_Storage(Rectangle),
 	enemies:         Component_Storage(Enemy),
@@ -120,6 +121,7 @@ entity_world_destroy :: proc(world: ^World) {
 
 	component_storage_destroy(&world.transforms)
 	component_storage_destroy(&world.growing_circles)
+	component_storage_destroy(&world.pulsing_circles)
 	component_storage_destroy(&world.bullets)
 	component_storage_destroy(&world.rectangles)
 	component_storage_destroy(&world.enemies)
@@ -152,6 +154,7 @@ entity_destroy :: proc(world: ^World, entity: Entity_ID) {
 
 	component_storage_remove(&world.transforms, entity)
 	component_storage_remove(&world.growing_circles, entity)
+	component_storage_remove(&world.pulsing_circles, entity)
 	component_storage_remove(&world.bullets, entity)
 	component_storage_remove(&world.rectangles, entity)
 	component_storage_remove(&world.enemies, entity)
