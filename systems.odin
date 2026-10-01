@@ -284,7 +284,7 @@ draw_menu :: proc(world: ^World, menu_a: f32) {
 	)
 
 	color := rl.Color{255, 255, 255, u8(menu_a)}
-	do_text_center("Går ut med Asta", 200, FONT_SIZE_TITLE, color, game.font_title)
+	do_text_center("Amidst Nuclear", 200, FONT_SIZE_TITLE, color, game.font_title)
 	do_text_center("Press [SPACE] to begin", 400, FONT_SIZE_BODY, color, game.font_body)
 }
 

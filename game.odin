@@ -213,7 +213,6 @@ game_run :: proc() {
 
 	music_player_update(&game.music_player, dt)
 	timelines_play(&game.splash_timeline, dt)
-	fmt.printf("menu_a = %v\n", game.menu_a)
 
 	switch state in game.state {
 	case GameState_Menu:
