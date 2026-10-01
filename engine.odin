@@ -293,6 +293,10 @@ timelines_set_frame :: proc(timelines: ^Timelines, frame: int) {
 	timelines.t = 0.0
 }
 
+timelines_destroy :: proc(timelines: ^Timelines) {
+	delete(timelines.list)
+}
+
 timelines_play :: proc(timelines: ^Timelines, dt: f32) {
 	// Check if we have any at all or maybe we're at the end
 	if len(timelines.list) == 0 || timelines.current >= len(timelines.list) {
@@ -310,24 +314,50 @@ timelines_play :: proc(timelines: ^Timelines, dt: f32) {
 	}
 }
 
-foo :: proc() {
-	// t: Timeline
-	// timeline_add(&t, 0, {
-	// 	 v = &v
-	// 	 from = 0.0
-	//   to = 1.0
-	//   duration = 3.0
-	//   tweening = CUBIC_IN | SIN | SMOOTHSTEP | LINEAR | QUAD_IN_OUT etc
-	// })
+Music_Player_Entry :: struct {
+	music:  rl.Music,
+	volume: f32,
+}
 
-	// timeline_set_frame(0)
-	// // timeline_set_frame(1) this would crash since there's no frame 1 in the timeline
-	// if timeline_not_done(&v) {
-	// 		timeline_play(&v, dt)
-	// 		use v! updated by the timeline since it has a reference to it
-	// }
-	/*
-	* Alternatively playing through the timeline can be something like
+Music_Player :: struct {
+	master_volume:     f32,
+	songs:             [dynamic]Music_Player_Entry,
+	currently_playing: int,
+}
 
-	*/
+music_player_add :: proc(mp: ^Music_Player, path: cstring) -> int {
+	music := rl.LoadMusicStream(path)
+	append(&mp.songs, Music_Player_Entry{music = music, volume = 0.0})
+	return len(mp.songs) - 1
+}
+
+// Note: call this after adding all your songs!
+music_player_init :: proc(mp: ^Music_Player, master_volume: f32) {
+	for e in mp.songs {
+		rl.PlayMusicStream(e.music)
+	}
+	mp.master_volume = master_volume
+}
+
+music_player_set_current :: proc(mp: ^Music_Player, current: int) {
+	mp.currently_playing = current
+}
+
+music_player_destroy :: proc(mp: ^Music_Player) {
+	for e in mp.songs {
+		rl.UnloadMusicStream(e.music)
+	}
+	delete(mp.songs)
+}
+
+music_player_update :: proc(mp: ^Music_Player, dt: f32) {
+	for &e, i in mp.songs {
+		if i != mp.currently_playing {
+			e.volume = math.lerp(e.volume, 0.0, dt * 2)
+		} else {
+			e.volume = math.lerp(e.volume, mp.master_volume, dt * 2)
+		}
+		rl.SetMusicVolume(e.music, e.volume)
+		rl.UpdateMusicStream(e.music)
+	}
 }

@@ -68,7 +68,7 @@ spawn_bullet :: proc(world: ^World, position: rl.Vector2, direction: rl.Vector2,
 	component_storage_add(&world.rectangles, entity, Rectangle{color = rl.RED})
 }
 
-get_random_enemy_behaviour :: proc() -> Enemy_Behaviour {
+random_enemy_behaviour :: proc() -> Enemy_Behaviour {
 	num := rand.float32_range(0, 4)
 	if num == 0 {
 		return Enemy_Behaviour_Turret{}
@@ -79,6 +79,8 @@ get_random_enemy_behaviour :: proc() -> Enemy_Behaviour {
 	} else if num == 3 {
 		return Enemy_Behaviour_Zombie{}
 	}
+
+	return Enemy_Behaviour_Turret{}
 }
 
 spawn_enemy :: proc(world: ^World, position: rl.Vector2) {
@@ -88,6 +90,6 @@ spawn_enemy :: proc(world: ^World, position: rl.Vector2) {
 		entity,
 		Transform{position = position, size = rl.Vector2{40, 40}},
 	)
-	component_storage_add(&world.enemies, entity, Enemy{move_speed = rand.float32_range(30, 90)})
+	component_storage_add(&world.enemies, entity, Enemy{behaviour = random_enemy_behaviour()})
 	component_storage_add(&world.rectangles, entity, Rectangle{color = rl.WHITE})
 }

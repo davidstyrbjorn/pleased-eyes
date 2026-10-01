@@ -21,6 +21,8 @@ Pulsing_Circle :: struct {
 	color:                  rl.Color,
 }
 
+Player :: distinct bool
+
 Line :: struct {
 	point_a, point_b: rl.Vector2,
 	color:            rl.Color,

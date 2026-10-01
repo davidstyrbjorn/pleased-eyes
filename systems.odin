@@ -4,6 +4,7 @@ import "core:c"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+
 import "core:math/rand"
 import rl "vendor:raylib"
 
@@ -191,6 +192,7 @@ update_bullets :: proc(world: ^World, dt: f32) {
 update_menu :: proc(world: ^World) {
 	if rl.IsKeyPressed(.SPACE) {
 		game.state = GameState_Playing{}
+		music_player_set_current(&game.music_player, game.music_main_id)
 	}
 }
 
@@ -201,8 +203,10 @@ update_paused :: proc(world: ^World) {
 			assert(false)
 		case GameState_Playing:
 			game.state = GameState_Paused{}
+			music_player_set_current(&game.music_player, game.music_subdued_id)
 		case GameState_Paused:
 			game.state = GameState_Playing{}
+			music_player_set_current(&game.music_player, game.music_main_id)
 		}
 	}
 }
@@ -268,9 +272,20 @@ debug_draw_nav_cells :: proc(world: ^World) {
 	}
 }
 
-draw_menu :: proc(world: ^World) {
-	do_text_center("Tender", 100, FONT_SIZE_TITLE, rl.WHITE, game.font_title)
-	do_text_center("Press [SPACE] to begin", 250, FONT_SIZE_BODY, rl.WHITE, game.font_body)
+draw_menu :: proc(world: ^World, menu_a: f32) {
+	ws := window_size()
+	rl.DrawTexturePro(
+		game.splash_image,
+		{0, 0, f32(game.splash_image.width), f32(game.splash_image.height)},
+		{0, 0, ws.x, ws.y},
+		0,
+		0,
+		rl.Color{255, 255, 255, u8(game.splash_a)},
+	)
+
+	color := rl.Color{255, 255, 255, u8(menu_a)}
+	do_text_center("Går ut med Asta", 200, FONT_SIZE_TITLE, color, game.font_title)
+	do_text_center("Press [SPACE] to begin", 400, FONT_SIZE_BODY, color, game.font_body)
 }
 
 draw_paused :: proc(world: ^World) {

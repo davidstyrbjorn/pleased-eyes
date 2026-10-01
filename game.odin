@@ -31,20 +31,23 @@ GameState :: union {
 }
 
 Game :: struct {
-	state:                 GameState,
-	world:                 World,
-	music:                 rl.Music,
-	music_paused:          rl.Music,
-	volume:                f32,
-	font_title:            rl.Font,
-	font_body:             rl.Font,
-	shoot_origin:          rl.Vector2,
-	navigator_spawn_timer: ElapsedTimer,
-	nav_cells:             map[Vector2i]Entity_ID, // auxilary storage for easier access into navigation cells
-	shader:                Shader,
-	flow_field:            Flow_Field,
-	player_turns:          f32, // 1 turn = 2 PI
-	defense_circle_radius: f32,
+	state:                           GameState,
+	world:                           World,
+	font_title:                      rl.Font,
+	font_body:                       rl.Font,
+	shoot_origin:                    rl.Vector2,
+	navigator_spawn_timer:           ElapsedTimer,
+	nav_cells:                       map[Vector2i]Entity_ID, // auxilary storage for easier access into navigation cells
+	shader:                          Shader,
+	flow_field:                      Flow_Field,
+	player_turns:                    f32, // 1 turn = 2 PI
+	defense_circle_radius:           f32,
+	music_player:                    Music_Player,
+	music_main_id, music_subdued_id: int,
+	splash_image:                    rl.Texture,
+	splash_timeline:                 Timelines,
+	splash_a:                        f32,
+	menu_a:                          f32,
 }
 
 // Store some auxiliary data about the flow field
@@ -101,13 +104,6 @@ game_init :: proc() {
 	rl.SetExitKey(nil)
 	rl.SetTargetFPS(144)
 
-	game.volume = 0
-	game.music = rl.LoadMusicStream("sound/song.wav")
-	rl.PlayMusicStream(game.music)
-	game.music_paused = rl.LoadMusicStream("sound/song_paused.wav")
-	rl.PlayMusicStream(game.music_paused)
-	rl.SetMasterVolume(0.4)
-
 	game.font_title = rl.LoadFontEx("fonts/RubikScribble-Regular.ttf", FONT_SIZE_TITLE, nil, 0)
 	game.font_body = rl.LoadFontEx("fonts/RubikScribble-Regular.ttf", FONT_SIZE_BODY, nil, 0)
 
@@ -131,11 +127,39 @@ game_init :: proc() {
 
 	game.state = GameState_Menu{}
 
-	game.navigator_spawn_timer.interval_s = 1_000
+	game.navigator_spawn_timer.interval_s = 1
 	game.navigator_spawn_timer.playing = true
 
 	game.player_turns = 0
 	game.defense_circle_radius = SIZE_CELL * 4
+
+	game.music_main_id = music_player_add(&game.music_player, "sound/game.mp3")
+	game.music_subdued_id = music_player_add(&game.music_player, "sound/game_subdued.mp3")
+	music_player_init(&game.music_player, 0.0)
+	music_player_set_current(&game.music_player, game.music_subdued_id)
+
+	game.splash_image = rl.LoadTexture("images/danger.png")
+
+	timelines_add(
+		&game.splash_timeline,
+		Timeline{duration = 2, from = 0.0, to = 255, v = &game.splash_a},
+	)
+	timelines_add(
+		&game.splash_timeline,
+		Timeline{duration = 2, from = 0.0, to = 0.6, v = &game.music_player.master_volume},
+	)
+	timelines_add(
+		&game.splash_timeline,
+		Timeline{duration = 2, from = 255, to = 255, v = &game.splash_a},
+	)
+	timelines_add(
+		&game.splash_timeline,
+		Timeline{duration = 2, from = 255, to = 0, v = &game.splash_a},
+	)
+	timelines_add(
+		&game.splash_timeline,
+		Timeline{duration = 2, from = 0, to = 255, v = &game.menu_a},
+	)
 }
 
 dump_draw_instructions_all_circles_and_lines :: proc() {
@@ -187,18 +211,14 @@ game_should_run :: proc() -> bool {
 game_run :: proc() {
 	dt := rl.GetFrameTime()
 
-	rl.UpdateMusicStream(game.music)
-	rl.UpdateMusicStream(game.music_paused)
-	rl.SetMusicVolume(game.music, game.volume)
-	rl.SetMusicVolume(game.music_paused, 1 - game.volume)
+	music_player_update(&game.music_player, dt)
+	timelines_play(&game.splash_timeline, dt)
+	fmt.printf("menu_a = %v\n", game.menu_a)
 
 	switch state in game.state {
 	case GameState_Menu:
-		game.volume = math.lerp(game.volume, 0.0, dt)
 		update_menu(&game.world)
 	case GameState_Playing:
-		game.volume = math.lerp(game.volume, 1.0, dt)
-
 		elapsed_timer_frame_tick(&game.navigator_spawn_timer, dt)
 
 		update_nav_cells(&game.world, dt)
@@ -208,7 +228,6 @@ game_run :: proc() {
 		update_bullets(&game.world, dt)
 		update_navigators(&game.world, dt)
 		update_pulsing_circles(&game.world, dt)
-
 
 		if rl.IsKeyDown(.D) {
 			game.player_turns += 0.2 * dt
@@ -243,8 +262,6 @@ game_run :: proc() {
 		}
 
 	case GameState_Paused:
-		game.volume = math.lerp(game.volume, 0.0, dt)
-
 		update_paused(&game.world)
 	}
 
@@ -253,7 +270,7 @@ game_run :: proc() {
 
 	switch state in game.state {
 	case GameState_Menu:
-		draw_menu(&game.world)
+		draw_menu(&game.world, game.menu_a)
 	case GameState_Playing:
 		rl.BeginShaderMode(game.shader.rl_shader)
 
@@ -324,8 +341,8 @@ game_deinit :: proc() {
 
 	rl.UnloadFont(game.font_body)
 	rl.UnloadFont(game.font_title)
-	rl.UnloadMusicStream(game.music)
-	rl.UnloadMusicStream(game.music_paused)
+	music_player_destroy(&game.music_player)
+	timelines_destroy(&game.splash_timeline)
 }
 
 random_color :: proc() -> rl.Color {
