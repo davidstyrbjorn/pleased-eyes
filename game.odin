@@ -54,6 +54,14 @@ Flow_Field :: struct {
 
 game: Game
 
+get_player_position :: proc() -> rl.Vector2 {
+	player_pos: rl.Vector2 = window_size() / 2.0
+	theta := 2 * math.PI * game.player_turns
+	player_pos.x += math.cos_f32(theta) * game.defense_circle_radius
+	player_pos.y += math.sin_f32(theta) * game.defense_circle_radius
+	return player_pos
+}
+
 generate_flow_field :: proc() {
 	// max_distance_possible := lingalg.length(CELL_COUNT)
 
@@ -104,7 +112,7 @@ game_init :: proc() {
 	game.font_body = rl.LoadFontEx("fonts/RubikScribble-Regular.ttf", FONT_SIZE_BODY, nil, 0)
 
 	game.shader = load_shader(
-		"obsidian.frag",
+		"shaders/toxic.frag",
 		{
 			ShaderUniform{name = "uResolution", value = rl.Vector2{0, 0}},
 			ShaderUniform{name = "uTime", value = 0.0},
@@ -127,7 +135,7 @@ game_init :: proc() {
 	game.navigator_spawn_timer.playing = true
 
 	game.player_turns = 0
-	game.defense_circle_radius = 300
+	game.defense_circle_radius = SIZE_CELL * 4
 }
 
 dump_draw_instructions_all_circles_and_lines :: proc() {
@@ -201,6 +209,7 @@ game_run :: proc() {
 		update_navigators(&game.world, dt)
 		update_pulsing_circles(&game.world, dt)
 
+
 		if rl.IsKeyDown(.D) {
 			game.player_turns += 0.2 * dt
 		} else if rl.IsKeyDown(.A) {
@@ -261,18 +270,14 @@ game_run :: proc() {
 
 		rl.EndShaderMode()
 
-		// debug_draw_nav_cells(&game.world)
+		debug_draw_nav_cells(&game.world)
 		// draw_circles(&game.world)
 		// draw_lines(&game.world)
-		// draw_shooting()
-		// draw_rectangles(&game.world)
-		// draw_navigators(&game.world)
+		draw_rectangles(&game.world)
+		draw_navigators(&game.world)
 
 		rl.DrawCircleLinesV(window_size() / 2.0, game.defense_circle_radius, rl.YELLOW)
-		player_pos: rl.Vector2 = window_size() / 2.0
-		theta := 2 * math.PI * game.player_turns
-		player_pos.x += math.cos_f32(theta) * game.defense_circle_radius
-		player_pos.y += math.sin_f32(theta) * game.defense_circle_radius
+		player_pos := get_player_position()
 		rl.DrawCircleV(player_pos, 10, rl.YELLOW)
 
 		rl.DrawCircleV({608, 608}, 32.385418, {113, 150, 106, 255})

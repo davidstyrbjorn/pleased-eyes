@@ -227,7 +227,6 @@ check_rect_collision :: proc(transform1, transform2: ^Transform) -> bool {
 
 /* End of Collision */
 
-
 ElapsedTimer :: struct {
 	s:          f32,
 	interval_s: f32,

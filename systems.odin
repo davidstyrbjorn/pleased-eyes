@@ -10,21 +10,11 @@ import rl "vendor:raylib"
 MAX_MOVE_SPEED :: 90
 
 update_shooting :: proc(world: ^World, dt: f32) {
-	if rl.IsMouseButtonPressed(.LEFT) {
-		// mark 'start'
-		game.shoot_origin = rl.GetMousePosition()
-	}
-
-	if rl.IsMouseButtonReleased(.LEFT) {
-		// shoot bitch
-		dir := rl.GetMousePosition() - game.shoot_origin
-		speed := min(MAX_MOVE_SPEED, rl.Vector2Length(dir))
-		spawn_bullet(
-			world,
-			game.shoot_origin - 10,
-			rl.GetMousePosition() - game.shoot_origin,
-			speed,
-		)
+	if rl.IsKeyPressed(.SPACE) {
+		player_pos := get_player_position()
+		center := window_size() / 2.0
+		bullet_direction := rl.Vector2Normalize(player_pos - center)
+		spawn_bullet(&game.world, player_pos, bullet_direction, 300)
 	}
 }
 
@@ -96,16 +86,6 @@ update_navigators :: proc(world: ^World, dt: f32) {
 
 	for entity in entities_to_remove {
 		entity_destroy(world, entity)
-	}
-
-}
-
-draw_shooting :: proc() {
-	if rl.IsMouseButtonDown(.LEFT) {
-		// if mouse is down, draw line from 'start' to mouse position (limited length)
-		dir := rl.GetMousePosition() - game.shoot_origin
-		line := rl.Vector2Normalize(dir) * min(MAX_MOVE_SPEED, rl.Vector2Length(dir))
-		rl.DrawLineV(game.shoot_origin, game.shoot_origin + line, rl.RED)
 	}
 }
 
@@ -243,7 +223,7 @@ update_nav_cells :: proc(world: ^World, dt: f32) {
 		nav_cell.interpolated_flow_vector = linalg.lerp(
 			nav_cell.interpolated_flow_vector,
 			goal,
-			dt * 5,
+			dt,
 		)
 	}
 }

@@ -41,8 +41,27 @@ Sprite :: struct {
 	after_draw:  proc(world: ^World, entity: Entity_ID),
 }
 
+Enemy_Behaviour_Turret :: struct {
+	timer: ElapsedTimer,
+}
+
+Enemy_Behaviour_Straight :: struct {
+	speed_modifier: f32, // speed = base_enemy_speed * speed_modifier
+}
+Enemy_Behaviour_Glitch :: struct {
+	direction: int,
+	timer:     ElapsedTimer,
+}
+Enemy_Behaviour_Zombie :: struct {}
+
+Enemy_Behaviour :: union {
+	Enemy_Behaviour_Turret,
+	Enemy_Behaviour_Straight,
+	Enemy_Behaviour_Glitch,
+	Enemy_Behaviour_Zombie,
+}
 Enemy :: struct {
-	move_speed: f32,
+	behaviour: Enemy_Behaviour,
 }
 
 // Flow_Direction: Vector2i : enum {
