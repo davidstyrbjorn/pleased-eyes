@@ -75,7 +75,7 @@ update_navigators :: proc(world: ^World, dt: f32) {
 			   ) <
 			   0.1 {
 				// Did we reach our target and is it equal to the goal position
-				if navigator.target.cell_position == goal_position {
+				if navigator.target.cell_position == game.flow_field.goal {
 					append(&entities_to_remove, entity)
 				} else {
 					// Time to pick a new thing to move towards

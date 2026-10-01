@@ -42,16 +42,23 @@ Game :: struct {
 	navigator_spawn_timer: ElapsedTimer,
 	nav_cells:             map[Vector2i]Entity_ID, // auxilary storage for easier access into navigation cells
 	shader:                Shader,
+	flow_field:            Flow_Field,
+	player_turns:          f32, // 1 turn = 2 PI
+	defense_circle_radius: f32,
+}
+
+// Store some auxiliary data about the flow field
+Flow_Field :: struct {
+	goal: Vector2i,
 }
 
 game: Game
-goal_position: Vector2i = 3
 
-generate_flow_field :: proc(goal: Vector2i) {
+generate_flow_field :: proc() {
 	// max_distance_possible := lingalg.length(CELL_COUNT)
 
 	// center_goal := goal + Vector2i{SIZE_CELL, SIZE_CELL} / 2
-	center_goal := goal
+	goal := game.flow_field.goal
 	world := &game.world
 	cells := [CELL_COUNT.x * CELL_COUNT.y]Entity_ID{}
 	for entity, i in &world.nav_cells.entities {
@@ -66,8 +73,8 @@ generate_flow_field :: proc(goal: Vector2i) {
 			continue
 		}
 		towards_goal_float := [2]f32{0, 0}
-		towards_goal_float.x = f32(center_goal.x) - f32(nav_cell.cell_position.x)
-		towards_goal_float.y = f32(center_goal.y) - f32(nav_cell.cell_position.y)
+		towards_goal_float.x = f32(goal.x) - f32(nav_cell.cell_position.x)
+		towards_goal_float.y = f32(goal.y) - f32(nav_cell.cell_position.y)
 		towards_goal_float = linalg.normalize(towards_goal_float)
 		nav_cell.flow_vector.x = int(math.round(towards_goal_float.x))
 		nav_cell.flow_vector.y = int(math.round(towards_goal_float.y))
@@ -84,6 +91,7 @@ game_init :: proc() {
 	)
 	rl.InitAudioDevice()
 	rl.SetExitKey(nil)
+	rl.SetTargetFPS(144)
 
 	game.volume = 0
 	game.music = rl.LoadMusicStream("sound/song.wav")
@@ -109,12 +117,17 @@ game_init :: proc() {
 			spawn_nav_cell(&game.world, Vector2i{x, y}, true)
 		}
 	}
-	generate_flow_field(goal_position)
+	#assert(CELL_COUNT.x % 2 == 1 && CELL_COUNT.y % 2 == 1) // We want an uneven number of cells to have a true center cell
+	game.flow_field.goal = {CELL_COUNT.x / 2, CELL_COUNT.y / 2}
+	generate_flow_field()
 
 	game.state = GameState_Menu{}
 
 	game.navigator_spawn_timer.interval_s = 1_000
 	game.navigator_spawn_timer.playing = true
+
+	game.player_turns = 0
+	game.defense_circle_radius = 300
 }
 
 dump_draw_instructions_all_circles_and_lines :: proc() {
@@ -159,207 +172,146 @@ dump_draw_instructions_all_circles_and_lines :: proc() {
 	fmt.println(str)
 }
 
+game_should_run :: proc() -> bool {
+	return !rl.WindowShouldClose()
+}
+
 game_run :: proc() {
-	for !rl.WindowShouldClose() {
-		dt := rl.GetFrameTime()
+	dt := rl.GetFrameTime()
 
-		rl.UpdateMusicStream(game.music)
-		rl.UpdateMusicStream(game.music_paused)
-		rl.SetMusicVolume(game.music, game.volume)
-		rl.SetMusicVolume(game.music_paused, 1 - game.volume)
+	rl.UpdateMusicStream(game.music)
+	rl.UpdateMusicStream(game.music_paused)
+	rl.SetMusicVolume(game.music, game.volume)
+	rl.SetMusicVolume(game.music_paused, 1 - game.volume)
 
-		prev_goal_position := goal_position
-		if rl.IsKeyPressed(.D) {
-			goal_position.x += 1
+	switch state in game.state {
+	case GameState_Menu:
+		game.volume = math.lerp(game.volume, 0.0, dt)
+		update_menu(&game.world)
+	case GameState_Playing:
+		game.volume = math.lerp(game.volume, 1.0, dt)
+
+		elapsed_timer_frame_tick(&game.navigator_spawn_timer, dt)
+
+		update_nav_cells(&game.world, dt)
+		update_growing_circles(&game.world, dt)
+		update_shooting(&game.world, dt)
+		update_paused(&game.world)
+		update_bullets(&game.world, dt)
+		update_navigators(&game.world, dt)
+		update_pulsing_circles(&game.world, dt)
+
+		if rl.IsKeyDown(.D) {
+			game.player_turns += 0.2 * dt
+		} else if rl.IsKeyDown(.A) {
+			game.player_turns -= 0.2 * dt
 		}
-		if rl.IsKeyPressed(.A) {
-			goal_position.x -= 1
-		}
-		if rl.IsKeyPressed(.S) {
-			goal_position.y += 1
-		}
-		if rl.IsKeyPressed(.W) {
-			goal_position.y -= 1
-		}
 
-		if prev_goal_position != goal_position {
-			generate_flow_field(goal_position)
-		}
-
-		switch state in game.state {
-		case GameState_Menu:
-			game.volume = math.lerp(game.volume, 0.0, dt)
-			update_menu(&game.world)
-		case GameState_Playing:
-			game.volume = math.lerp(game.volume, 1.0, dt)
-
-			elapsed_timer_frame_tick(&game.navigator_spawn_timer, dt)
-
-			update_nav_cells(&game.world, dt)
-			update_growing_circles(&game.world, dt)
-			update_shooting(&game.world, dt)
-			update_paused(&game.world)
-			update_bullets(&game.world, dt)
-			update_navigators(&game.world, dt)
-			update_pulsing_circles(&game.world, dt)
-
-			if rl.IsKeyPressed(.ONE) {
-				entities := make_dynamic_array([dynamic]Entity_ID, context.temp_allocator)
-				// Turn all Growing_Circle components into Pulsing_Circle motherfuckers
-				for entity in game.world.growing_circles.entities {
-					growing_circle := component_storage_get(&game.world.growing_circles, entity)
-					component_storage_add(
-						&game.world.pulsing_circles,
-						entity,
-						Pulsing_Circle {
-							from_radius = growing_circle.radius,
-							to_radius = growing_circle.radius - 20,
-							radius = growing_circle.radius,
-							color = growing_circle.color,
-						},
-					)
-					append(&entities, entity)
-				}
-
-				for entity in entities {
-					component_storage_remove(&game.world.growing_circles, entity)
-				}
-			}
-			if rl.IsKeyPressed(.TWO) {
-				goal_position.x = CELL_COUNT.x / 2
-				goal_position.y = CELL_COUNT.y / 2
-			}
-			if rl.IsKeyPressed(.THREE) {
-				dump_draw_instructions_all_circles_and_lines()
+		if rl.IsKeyPressed(.ONE) {
+			entities := make_dynamic_array([dynamic]Entity_ID, context.temp_allocator)
+			// Turn all Growing_Circle components into Pulsing_Circle motherfuckers
+			for entity in game.world.growing_circles.entities {
+				growing_circle := component_storage_get(&game.world.growing_circles, entity)
+				component_storage_add(
+					&game.world.pulsing_circles,
+					entity,
+					Pulsing_Circle {
+						from_radius = growing_circle.radius,
+						to_radius = growing_circle.radius - 20,
+						radius = growing_circle.radius,
+						color = growing_circle.color,
+					},
+				)
+				append(&entities, entity)
 			}
 
-		case GameState_Paused:
-			game.volume = math.lerp(game.volume, 0.0, dt)
-
-			update_paused(&game.world)
+			for entity in entities {
+				component_storage_remove(&game.world.growing_circles, entity)
+			}
+		}
+		if rl.IsKeyPressed(.THREE) {
+			dump_draw_instructions_all_circles_and_lines()
 		}
 
-		rl.BeginDrawing()
-		rl.ClearBackground(rl.BLACK)
+	case GameState_Paused:
+		game.volume = math.lerp(game.volume, 0.0, dt)
 
-		switch state in game.state {
-		case GameState_Menu:
-			draw_menu(&game.world)
-		case GameState_Playing:
-			rl.BeginShaderMode(game.shader.rl_shader)
-
-			window_width := rl.GetScreenWidth()
-			window_height := rl.GetScreenHeight()
-			update_uniform_value(
-				&game.shader,
-				"uResolution",
-				rl.Vector2{f32(window_width), f32(window_height)},
-			)
-			update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
-
-			rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
-
-			rl.EndShaderMode()
-
-			// debug_draw_nav_cells(&game.world)
-			// draw_circles(&game.world)
-			// draw_lines(&game.world)
-			// draw_shooting()
-			// draw_rectangles(&game.world)
-			// draw_navigators(&game.world)
-
-			rl.DrawCircleV({608, 608}, 32.385418, {113, 150, 106, 255})
-			rl.DrawCircleV({608, 736}, 45.579853, {132, 131, 186, 255})
-			rl.DrawCircleV({608, 544}, 32.108406, {128, 122, 194, 255})
-			rl.DrawCircleV({480, 608}, 45.579853, {164, 165, 195, 255})
-			rl.DrawCircleV({736, 608}, 45.579853, {180, 149, 112, 255})
-			rl.DrawCircleV({544, 672}, 45.283447, {174, 103, 161, 255})
-			rl.DrawCircleV({672, 672}, 45.283447, {161, 142, 156, 255})
-			rl.DrawCircleV({544, 480}, 58.466766, {142, 196, 116, 255})
-			rl.DrawCircleV({672, 480}, 58.466766, {182, 156, 177, 255})
-			rl.DrawLineDashed({708, 576.1084}, {508, 576.1084}, 2, 5, {110, 195, 114, 255})
-			rl.DrawLineDashed({508, 575.61456}, {708, 575.61456}, 2, 5, {143, 157, 143, 255})
-			rl.DrawLineDashed(
-				{646.73096, 633.3096},
-				{505.30957, 774.73096},
-				2,
-				5,
-				{103, 122, 109, 255},
-			)
-			rl.DrawLineDashed(
-				{441.2691, 710.6904},
-				{582.6904, 569.26904},
-				2,
-				5,
-				{144, 164, 104, 255},
-			)
-			rl.DrawLineDashed(
-				{710.6904, 774.73096},
-				{569.26904, 633.3096},
-				2,
-				5,
-				{106, 100, 102, 255},
-			)
-			rl.DrawLineDashed(
-				{633.3096, 569.26904},
-				{774.73096, 710.6904},
-				2,
-				5,
-				{172, 187, 174, 255},
-			)
-			rl.DrawLineDashed(
-				{505.0595, 774.4809},
-				{646.4809, 633.0595},
-				2,
-				5,
-				{148, 177, 166, 255},
-			)
-			rl.DrawLineDashed(
-				{569.5191, 633.0595},
-				{710.9405, 774.4809},
-				2,
-				5,
-				{171, 149, 118, 255},
-			)
-			rl.DrawLineDashed(
-				{582.9405, 569.5191},
-				{441.5191, 710.9405},
-				2,
-				5,
-				{145, 137, 126, 255},
-			)
-			rl.DrawLineDashed(
-				{774.4809, 710.9405},
-				{633.0595, 569.5191},
-				2,
-				5,
-				{178, 104, 149, 255},
-			)
-			rl.DrawLineDashed(
-				{656.0529, 450.63153},
-				{514.63153, 592.0529},
-				2,
-				5,
-				{191, 189, 147, 255},
-			)
-			rl.DrawLineDashed(
-				{701.36847, 592.0529},
-				{559.9471, 450.63153},
-				2,
-				5,
-				{118, 106, 171, 255},
-			)
-
-		case GameState_Paused:
-			draw_circles(&game.world)
-			draw_lines(&game.world)
-			draw_paused(&game.world)
-		}
-
-		rl.EndDrawing()
-
-		free_all(context.temp_allocator)
+		update_paused(&game.world)
 	}
+
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.BLACK)
+
+	switch state in game.state {
+	case GameState_Menu:
+		draw_menu(&game.world)
+	case GameState_Playing:
+		rl.BeginShaderMode(game.shader.rl_shader)
+
+		window_width := rl.GetScreenWidth()
+		window_height := rl.GetScreenHeight()
+		update_uniform_value(
+			&game.shader,
+			"uResolution",
+			rl.Vector2{f32(window_width), f32(window_height)},
+		)
+		update_uniform_value(&game.shader, "uTime", f32(rl.GetTime()))
+
+		rl.DrawRectangle(0, 0, window_width, window_height, rl.WHITE)
+
+		rl.EndShaderMode()
+
+		// debug_draw_nav_cells(&game.world)
+		// draw_circles(&game.world)
+		// draw_lines(&game.world)
+		// draw_shooting()
+		// draw_rectangles(&game.world)
+		// draw_navigators(&game.world)
+
+		rl.DrawCircleLinesV(window_size() / 2.0, game.defense_circle_radius, rl.YELLOW)
+		player_pos: rl.Vector2 = window_size() / 2.0
+		theta := 2 * math.PI * game.player_turns
+		player_pos.x += math.cos_f32(theta) * game.defense_circle_radius
+		player_pos.y += math.sin_f32(theta) * game.defense_circle_radius
+		rl.DrawCircleV(player_pos, 10, rl.YELLOW)
+
+		rl.DrawCircleV({608, 608}, 32.385418, {113, 150, 106, 255})
+		rl.DrawCircleV({608, 736}, 45.579853, {132, 131, 186, 255})
+		rl.DrawCircleV({608, 544}, 32.108406, {128, 122, 194, 255})
+		rl.DrawCircleV({480, 608}, 45.579853, {164, 165, 195, 255})
+		rl.DrawCircleV({736, 608}, 45.579853, {180, 149, 112, 255})
+		rl.DrawCircleV({544, 672}, 45.283447, {174, 103, 161, 255})
+		rl.DrawCircleV({672, 672}, 45.283447, {161, 142, 156, 255})
+		rl.DrawCircleV({544, 480}, 58.466766, {142, 196, 116, 255})
+		rl.DrawCircleV({672, 480}, 58.466766, {182, 156, 177, 255})
+		rl.DrawLineDashed({708, 576.1084}, {508, 576.1084}, 2, 5, {110, 195, 114, 255})
+		rl.DrawLineDashed({508, 575.61456}, {708, 575.61456}, 2, 5, {143, 157, 143, 255})
+		rl.DrawLineDashed(
+			{646.73096, 633.3096},
+			{505.30957, 774.73096},
+			2,
+			5,
+			{103, 122, 109, 255},
+		)
+		rl.DrawLineDashed({441.2691, 710.6904}, {582.6904, 569.26904}, 2, 5, {144, 164, 104, 255})
+		rl.DrawLineDashed({710.6904, 774.73096}, {569.26904, 633.3096}, 2, 5, {106, 100, 102, 255})
+		rl.DrawLineDashed({633.3096, 569.26904}, {774.73096, 710.6904}, 2, 5, {172, 187, 174, 255})
+		rl.DrawLineDashed({505.0595, 774.4809}, {646.4809, 633.0595}, 2, 5, {148, 177, 166, 255})
+		rl.DrawLineDashed({569.5191, 633.0595}, {710.9405, 774.4809}, 2, 5, {171, 149, 118, 255})
+		rl.DrawLineDashed({582.9405, 569.5191}, {441.5191, 710.9405}, 2, 5, {145, 137, 126, 255})
+		rl.DrawLineDashed({774.4809, 710.9405}, {633.0595, 569.5191}, 2, 5, {178, 104, 149, 255})
+		rl.DrawLineDashed({656.0529, 450.63153}, {514.63153, 592.0529}, 2, 5, {191, 189, 147, 255})
+		rl.DrawLineDashed({701.36847, 592.0529}, {559.9471, 450.63153}, 2, 5, {118, 106, 171, 255})
+
+	case GameState_Paused:
+		draw_circles(&game.world)
+		draw_lines(&game.world)
+		draw_paused(&game.world)
+	}
+
+	rl.EndDrawing()
+
+	free_all(context.temp_allocator)
 }
 
 game_deinit :: proc() {
